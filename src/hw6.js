@@ -48,13 +48,14 @@ scene.add(directionalLight2);
 // TODO: Goal
 // You should copy-paste the goal from the previous exercise here
 const goal = generateGoal();
+scaleObject(goal, 3, 3, 3);
 scene.add(goal);
-camera.lookAt(goal.position);
 
 // TODO: Ball
 // You should add the ball with the soccer.jpg texture here
 const ball = generateBall();
 scene.add(ball);
+camera.lookAt(ball.position);
 
 // TODO: Bezier Curves
 const rightCurve = createCurve(
@@ -87,7 +88,7 @@ class Card {
   static generateCardMesh(curve, texture, type) {
     const t = Math.random();
     const point = curve.getPoint(t);
-    const cardGeometry = new THREE.PlaneGeometry(1, 1);
+    const cardGeometry = new THREE.PlaneGeometry(2, 2);
     const cardMaterial = new THREE.MeshPhongMaterial({ map: texture });
     const card = new THREE.Mesh(cardGeometry, cardMaterial);
     translateObject(card, point.x, point.y, point.z);
@@ -102,7 +103,7 @@ const centreCurveCards = [];
 const lefturveCards = [];
 
 for (let i = 0; i < numCards; i++) {
-  const curveIndex = Math.floor(i % ((numCards / curves.length) - 1));
+  const curveIndex = Math.floor(i % (numCards / curves.length - 1));
   const card = Card.generateCardMesh(
     curves[curveIndex],
     randomSample([redCardTexture, yellowCardTexture], 1)[0],
@@ -137,7 +138,6 @@ scene.add(
 renderer.render(scene, camera);
 
 // ====================== Controls =============================
-
 
 let t = 0;
 const tIncrementStep = 0.002;
@@ -273,7 +273,7 @@ function generateGoal() {
 // ====================== Generate Ball =============================
 
 function generateBall() {
-  let ballGeometry = new THREE.SphereGeometry(0.25, 32, 32);
+  let ballGeometry = new THREE.SphereGeometry(0.5, 32, 32);
   let ballMaterial = new THREE.MeshPhongMaterial({ map: ballTexture });
   let ball = new THREE.Mesh(ballGeometry, ballMaterial);
   translateObject(ball, 0, 0, 100);
@@ -322,10 +322,11 @@ function updateCameraPositionAndDirection(camera, ball) {
   const point = centerCurve.getPoint(t);
   translateObject(
     camera,
-    point.x - camera.position.x - 5,
+    point.x - camera.position.x,
     point.y - camera.position.y + 20,
     point.z - camera.position.z + 30
   );
+  camera.lookAt(goal.position);
 }
 
 function testCollision(curveIndex, tBall) {
