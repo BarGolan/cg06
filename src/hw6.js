@@ -1,5 +1,3 @@
-import { OrbitControls } from "./OrbitControls.js";
-
 // Scene Declartion
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
