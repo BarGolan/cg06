@@ -9,8 +9,7 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 // This defines the initial distance of the camera, you may ignore this as the camera is expected to be dynamic
-camera.applyMatrix4(new THREE.Matrix4().makeTranslation(-5, 3, 110));
-camera.lookAt(0, -4, 1);
+camera.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 3, 110));
 
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -31,47 +30,150 @@ scene.background = texture;
 
 // TODO: Texture Loading
 // We usually do the texture loading before we start everything else, as it might take processing time
+const textureLoader = new THREE.TextureLoader();
+const ballTexture = textureLoader.load("src/textures/soccer_ball.jpg");
+const redCardTexture = textureLoader.load("src/textures/red_card.jpg");
+const yellowCardTexture = textureLoader.load("src/textures/yellow_card.jpg");
 
 // TODO: Add Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1);
+translateObject(directionalLight1, 0, 20, 60);
+scene.add(directionalLight1);
+
+const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1);
+translateObject(directionalLight1, 0, 20, 30);
+scene.add(directionalLight2);
 
 // TODO: Goal
 // You should copy-paste the goal from the previous exercise here
 const goal = generateGoal();
 scene.add(goal);
+camera.lookAt(goal.position);
 
 // TODO: Ball
 // You should add the ball with the soccer.jpg texture here
+const ball = generateBall();
+scene.add(ball);
 
 // TODO: Bezier Curves
+const rightCurve = createCurve(
+  new THREE.Vector3(0, 0, 100),
+  new THREE.Vector3(50, 0, 50),
+  new THREE.Vector3(0, 0, 0)
+);
 
-// TODO: Camera Settings
-// Set the camera following the ball here
+const centerCurve = createCurve(
+  new THREE.Vector3(0, 0, 100),
+  new THREE.Vector3(0, 50, 50),
+  new THREE.Vector3(0, 0, 0)
+);
 
-// TODO: Add collectible cards with textures
+const leftCurve = createCurve(
+  new THREE.Vector3(0, 0, 100),
+  new THREE.Vector3(-50, 0, 50),
+  new THREE.Vector3(0, 0, 0)
+);
+
+const curves = [rightCurve, centerCurve, leftCurve];
+class Card {
+  constructor(object, curve, t, type) {
+    this.object = object;
+    this.curve = curve;
+    this.t = t;
+    this.type = type;
+  }
+
+  static generateCardMesh(curve, texture, type) {
+    const t = Math.random();
+    const point = curve.getPoint(t);
+    const cardGeometry = new THREE.PlaneGeometry(1, 1);
+    const cardMaterial = new THREE.MeshPhongMaterial({ map: texture });
+    const card = new THREE.Mesh(cardGeometry, cardMaterial);
+    translateObject(card, point.x, point.y, point.z);
+
+    return new Card(card, curve, t, type);
+  }
+}
+
+const numCards = 12;
+const rightCurveCards = [];
+const centreCurveCards = [];
+const lefturveCards = [];
+
+for (let i = 0; i < numCards; i++) {
+  const curveIndex = Math.floor(i % ((numCards / curves.length) - 1));
+  const card = Card.generateCardMesh(
+    curves[curveIndex],
+    randomSample([redCardTexture, yellowCardTexture], 1)[0],
+    randomSample(["red", "yellow"], 1)[0]
+  );
+  if (curveIndex === 0) {
+    rightCurveCards.push(card);
+  } else if (curveIndex === 1) {
+    centreCurveCards.push(card);
+  } else {
+    lefturveCards.push(card);
+  }
+}
+
+const sortFunc = (card1, card2) => card1.t - card2.t;
+rightCurveCards.sort(sortFunc);
+centreCurveCards.sort(sortFunc);
+lefturveCards.sort(sortFunc);
+
+const curvesToCardListMapper = {
+  0: rightCurveCards,
+  1: centreCurveCards,
+  2: lefturveCards,
+};
+
+scene.add(
+  ...[...rightCurveCards, ...centreCurveCards, ...lefturveCards].map(
+    (card) => card.object
+  )
+);
 
 renderer.render(scene, camera);
-const controls = new OrbitControls(camera, renderer.domElement);
 
-// TODO: Add keyboard event
-// We wrote some of the function for you
+// ====================== Controls =============================
+
+
+let t = 0;
+const tIncrementStep = 0.002;
+let yellowCardCollisionCounter = 0;
+let redCardCollisionCounter = 0;
+let currentCurveIndex = 0;
+
+// ====================== Event Listeners =============================
+
 const handle_keydown = (e) => {
   if (e.code == "ArrowLeft") {
-    // TODO
+    currentCurveIndex = (currentCurveIndex + 1) % curves.length;
   } else if (e.code == "ArrowRight") {
-    // TODO
+    currentCurveIndex = (currentCurveIndex - 1 + curves.length) % curves.length;
   }
 };
+
 document.addEventListener("keydown", handle_keydown);
-controls.update();
 
 function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  // TODO: Animation for the ball's position
-
-  // TODO: Test for card-ball collision
-
-  renderer.render(scene, camera);
+  setTimeout(function () {
+    let animationId = requestAnimationFrame(animate);
+    controls.update();
+    updateBallPosition(curves[currentCurveIndex], t);
+    updateCameraPositionAndDirection(camera, ball);
+    testCollision(currentCurveIndex, t);
+    t += tIncrementStep;
+    renderer.render(scene, camera);
+    if (t > 1) {
+      alert(`Your score is ${calcScore().toFixed(2)}`);
+      cancelAnimationFrame(animationId);
+      return;
+    }
+  }, 1000 / 30);
 }
 animate();
 
@@ -80,7 +182,7 @@ animate();
 function generateGoal() {
   const goal = new THREE.Group();
 
-  let material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  let material = new THREE.MeshPhongMaterial({ color: 0xffffff });
   let goalpostGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2, 32);
   let crossbarGeometry = new THREE.CylinderGeometry(0.1, 0.1, 6, 32);
   let goalPostRingGeometry = new THREE.SphereGeometry(0.2, 32, 32);
@@ -121,11 +223,11 @@ function generateGoal() {
   rotateObject(rightBackSupport, new THREE.Vector3(1, 0, 0), 30);
   translateObject(rightBackSupport, 3, 1, -0.6);
 
-  let netMaterial = new THREE.MeshBasicMaterial({
+  let netMaterial = new THREE.MeshPhongMaterial({
     color: 0xd3d3d3,
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.5,
   });
 
   let backNet = new THREE.Mesh(netGeometry, netMaterial);
@@ -174,10 +276,10 @@ function generateGoal() {
 // ====================== Generate Ball =============================
 
 function generateBall() {
-  let ballGeometry = new THREE.SphereGeometry(0.125, 32, 32);
-  let ballMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  let ballGeometry = new THREE.SphereGeometry(0.25, 32, 32);
+  let ballMaterial = new THREE.MeshPhongMaterial({ map: ballTexture });
   let ball = new THREE.Mesh(ballGeometry, ballMaterial);
-  translateObject(ball, 0, 1.5, 2.5);
+  translateObject(ball, 0, 0, 100);
 
   return ball;
 }
@@ -201,16 +303,76 @@ function degrees_to_radians(degrees) {
   return degrees * (pi / 180);
 }
 
-function toggleWireframe(scene) {
-  scene.traverse((object) => {
-    if (object.isMesh) {
-      object.material.wireframe = !object.material.wireframe;
-    }
-  });
-}
-
 function scaleObject(object, xFactor, yFactor, zFactor) {
   const scaleMatrix = new THREE.Matrix4();
   scaleMatrix.makeScale(xFactor, yFactor, zFactor);
   object.applyMatrix4(scaleMatrix);
+}
+
+function updateBallPosition(curve, t) {
+  if (t >= 1) return;
+  const point = curve.getPoint(t);
+  ball.position.set(point.x, point.y, point.z);
+  translateObject(
+    ball,
+    point.x - ball.position.x,
+    point.y - ball.position.y,
+    point.z - ball.position.z
+  );
+}
+
+function updateCameraPositionAndDirection(camera, ball) {
+  const point = centerCurve.getPoint(t);
+  translateObject(
+    camera,
+    point.x - camera.position.x - 5,
+    point.y - camera.position.y + 20,
+    point.z - camera.position.z + 30
+  );
+}
+
+function testCollision(curveIndex, tBall) {
+  const cardsList = curvesToCardListMapper[curveIndex];
+  if (cardsList.length === 0) return;
+  const index = cardsList.findIndex(
+    (card) => card.t > tBall - tIncrementStep && card.t < tBall + tIncrementStep
+  );
+  if (index === -1) return;
+  const card = cardsList[index];
+  card.object.material.visible = false;
+  card.type === "red"
+    ? redCardCollisionCounter++
+    : yellowCardCollisionCounter++;
+  cardsList.splice(index, 1);
+}
+
+function calcScore() {
+  return (
+    100 *
+    2 *
+    (-(yellowCardCollisionCounter + 10 * redCardCollisionCounter) / 10)
+  );
+}
+
+function randomSample(array, sampleSize) {
+  const shuffled = array.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, sampleSize);
+}
+
+// ====================== Generate Curves =============================
+
+function createCurve(v0, v1, v2) {
+  const curve = new THREE.QuadraticBezierCurve3(v0, v1, v2);
+  const geometry = new THREE.BufferGeometry().setFromPoints(
+    curve.getPoints(50)
+  );
+  const material = new THREE.LineBasicMaterial({
+    color: 0x000000,
+    opacity: 0,
+    transparent: true,
+  });
+  const line = new THREE.Line(geometry, material);
+  scene.add(line);
+
+  return curve;
 }
