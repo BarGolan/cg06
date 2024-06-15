@@ -160,7 +160,6 @@ document.addEventListener("keydown", handle_keydown);
 function animate() {
   setTimeout(function () {
     let animationId = requestAnimationFrame(animate);
-    controls.update();
     updateBallPosition(curves[currentCurveIndex], t);
     updateCameraPositionAndDirection(camera, ball);
     testCollision(currentCurveIndex, t);
